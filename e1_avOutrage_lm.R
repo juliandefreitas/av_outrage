@@ -15,14 +15,14 @@ if (!require(lme4)) install.packages("lme4"); require(lme4)
 if (!require(ggforce)) {install.packages("ggforce"); require(ggsignif)}
 if (!require(ggpubr)) {install.packages("ggpubr"); require(ggpubr)}
 if (!require(ltm)) {install.packages("ltm"); require(ltm)} 
-if (!require(lmertest)) {install.packages("lmertest"); require(lmertest)} 
+library("lmerTest")
 
 ##================================================================================================================
                                               ##IMPORT & PRE-PROCESS DATA##
 ##================================================================================================================
 
 #read data
-dir <- setwd("/Users/julian/Dropbox (Personal)/Research/av_ethics/3_av_outrage/av_outrage_online_materials/")
+#dir <- setwd("[YOUR DATA DIRECTORY HERE]")
 data <- read.csv('e1_data.csv')
 
 #pre-process mturk data:
@@ -230,7 +230,7 @@ var.test(outrage[intention_cond == 'intent' & pref_cond == 'preferred'],
          outrage[intention_cond == 'intent' & pref_cond == 'unpreferred'])
 outrage_t <- t.test(outrage[intention_cond == 'intent' & pref_cond == 'preferred'], 
                      blame_man[intention_cond == 'intent' & pref_cond == 'unpreferred'], 
-                     var.equal=TRUE, paired=FALSE)
+                     var.equal=FALSE, paired=FALSE)
 outrage_t
 
 var.test(outrage[intention_cond == 'random' & pref_cond == 'preferred'], 
@@ -299,10 +299,10 @@ worry_other_t
 #violin + strip plot: https://bio723-class.github.io/Bio723-book/introduction-to-ggplot2.html
 
 ## VIOLIN PLOTS ##
-data$blame_company <- as.numeric(data$blame_company)
 data$intention_cond <- as.factor(data$intention_cond)
 data$pref_cond <- as.factor(data$pref_cond)
 data$category_cond <- as.factor(data$category_cond)
+data$blame_company <- as.numeric(data$blame_company)
 data$outrage <- as.numeric(data$outrage)
 data$col_action <- as.numeric(data$col_action)
 pref_graph_labels <- c("Preferred", "Unpreferred")
@@ -410,8 +410,6 @@ for(i in 1:length(unique(intention_cond))) {
   }
 }
 
-blame_company_preferred_plot <- subset(blame_company_plot, pref == 1)
-blame_company_unpreferred_plot <- subset(blame_company_plot, pref == 2)
 
 
 ## (2_2) outrage
@@ -430,8 +428,6 @@ for(i in 1:length(unique(intention_cond))) {
   }
 }
 
-outrage_preferred_plot <- subset(outrage_plot, pref == 1)
-outrage_unpreferred_plot <- subset(outrage_plot, pref == 2)
 
 
 ## (3_2) collective action
@@ -450,9 +446,6 @@ for(i in 1:length(unique(intention_cond))) {
   }
 }
 
-outrage_preferred_plot <- subset(outrage_plot, pref == 1)
-outrage_unpreferred_plot <- subset(outrage_plot, pref == 2)
-
 #================================================================================================================
                              ##FIG 2: PLOT SOME INDIVIDUAL SOCIAL CATEGORY RESULTS##
 ##================================================================================================================
@@ -469,7 +462,6 @@ p1_2<- p1_2+theme(text = element_text(size=16),panel.grid.major = element_blank(
   ggtitle("Blame of Manufacturer")+
   scale_fill_manual(values = c("#1E10AD", "#4E85C9", "#68AB6D", "#E8B433", "#DC595C"),name= "Social Category:",
                     labels=social_plot_labels, guide = guide_legend(reverse = TRUE))+
-  #scale_fill_discrete(name="Target Killed",labels=pref_graph_labels)+
   xlab ("") + ylab ("") +
   theme_classic()+
   theme(axis.text.x = element_text(size=12))+
@@ -489,7 +481,6 @@ p2_2<- p2_2+theme(text = element_text(size=16),panel.grid.major = element_blank(
   ggtitle("Outrage Toward Manufacturer")+
   scale_fill_manual(values = c("#1E10AD", "#4E85C9", "#68AB6D", "#E8B433", "#DC595C"),name= "Social Category",
                     labels=social_plot_labels, guide = guide_legend(reverse = TRUE))+
-  #scale_fill_discrete(name="Target Killed",labels=pref_graph_labels)+
   xlab ("") + ylab ("") +
   theme_classic()+
   theme(axis.text.x = element_text(size=12))+
@@ -509,7 +500,6 @@ p3_2<- p3_2+theme(text = element_text(size=16),panel.grid.major = element_blank(
   ggtitle("Collective Action Against Manufacturer")+
   scale_fill_manual(values = c("#1E10AD", "#4E85C9", "#68AB6D", "#E8B433", "#DC595C"),name= "Social Category",
                     labels=social_plot_labels, guide = guide_legend(reverse = TRUE))+
-  #scale_fill_discrete(name="Target Killed",labels=pref_graph_labels)+
   xlab ("") + ylab ("") +
   theme_classic()+
   theme(axis.text.x = element_text(size=12))+
