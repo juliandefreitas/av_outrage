@@ -9,20 +9,25 @@ rm(list = ls())
 options(download.file.method="libcurl")
 
 ## necessary libraries
-if (!require(ggplot2)) {install.packages("ggplot2"); require(ggplot2)}
-if (!require(ggsignif)) {install.packages("ggsignif"); require(ggsignif)}
-if (!require(lme4)) install.packages("lme4"); require(lme4)           
-if (!require(ggforce)) {install.packages("ggforce"); require(ggsignif)}
-if (!require(ggpubr)) {install.packages("ggpubr"); require(ggpubr)}
-if (!require(ltm)) {install.packages("ltm"); require(ltm)} 
+if (!require(ggplot2)) {install.packages("ggplot2"); require(ggplot2)}           ## plotting
+if (!require(ggsignif)) {install.packages("ggsignif"); require(ggsignif)}        ## plot significance levels on plot
+if (!require(lme4)) install.packages("lme4"); require(lme4)                      ## mixed effects models           
+if (!require(ggforce)) {install.packages("ggforce"); require(ggforce)}           ## fancier visualizations
+if (!require(ggpubr)) {install.packages("ggpubr"); require(ggpubr)}              ## combine plots
+#if (!require(ltm)) {install.packages("ltm"); require(ltm)}                      ## Are we using this? 
+if (!require(simr)) {install.packages("simr"); require(simr)}                    ## power analysis for mixed models
+if (!require(compute.es)) {install.packages("compute.es"); require(compute.es)}  ## effect size package
+if (!require(effsize)) {install.packages("effsize"); require(effsize)}           ## another effect size package
+if (!require(pwr)) {install.packages("pwr"); require(pwr)}                       ## package for power calculation
 library("lmerTest")
+
 
 ##================================================================================================================
                                               ##IMPORT & PRE-PROCESS DATA##
 ##================================================================================================================
 
 #read data
-#dir <- setwd("[YOUR DATA DIRECTORY HERE]")
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) #set working directoy to current directory
 data <- read.csv('e1_data.csv')
 
 #pre-process mturk data:
@@ -112,8 +117,11 @@ social_cond <- as.factor(data$category)
 
 #blame
 blame_man <- as.numeric(data$blame_man)
+data$blame_man <- as.numeric(data$blame_man)
 blame_av <- as.numeric(data$blame_av)
+data$blame_av <- as.numeric(data$blame_av)
 blame_company <- as.numeric(data$blame_company)
+data$blame_company <- as.numeric(data$blame_company)
 
 #outrage
 outrage_anger <- as.numeric(data$outrage_anger)
@@ -155,20 +163,47 @@ worry_other <- as.numeric(data$worry_other)
                                                       ##ANALYSIS##
 ##================================================================================================================
 
+GetPower<- function(coeff_vec, mod1, mod0) {
+    pwr <- NA
+    for(i in 1:length(coeff_vec)){
+      fixef(mod1)["intention_cond_num"] <- coeff_vec[i]
+      set.seed(123)
+      pwr[i] <- round(as.numeric(summary(powerSim(mod1, test=compare(mod0, method="lr"), nsim=100))[3]),3)
+    }
+    coeff_power <- cbind("Unstd ES" = coeff_vec, Power = pwr)
+    
+    return(coeff_power)
+}
+
+GetTPower<- function(coeff_vec, n1, n2) {
+    pwr <- NA
+    for(i in 1:length(coeff_vec)){
+      set.seed(123)
+      pwr[i] <- as.numeric(pwr.t.test(n = min(n1, n2), d = as.numeric(coeff_vec[i]))[4])
+    }
+    coeff_power <- cbind("Unstd ES" = coeff_vec, Power = pwr)
+    
+    return(coeff_power)
+}
+
+
 #define some labels
 intention_labels <- c('intent', 'random')
 pref_labels <- c('preferred', 'unpreferred')
 social_labels <- unique(social_cond)
 
 intention_cond_num <- as.numeric(intention_cond)
+data$intention_cond_num <- as.numeric(intention_cond)
 pref_cond_num <- as.numeric(pref_cond)
+data$pref_cond_num <- as.numeric(pref_cond)
 social_cond_num <- as.numeric(social_cond)
+data$social_cond_num <- as.numeric(social_cond)
 
-# (1.1) BLAME HUMAN
-blame_man_mod <- lmer(blame_man ~ pref_cond_num*intention_cond_num + (1 | social_cond_num))
+# (1.1) BLAME HUMAN -------------
+blame_man_mod <- lmer(blame_man ~ pref_cond_num*intention_cond_num + (1 | social_cond_num), data=data)
 summary(blame_man_mod)
 
-#followup to interaction: preferred v. unpreferred, intentional
+## followup to interaction: preferred v. unpreferred, intentional
 var.test(blame_man[intention_cond == 'intent' & pref_cond == 'preferred'], 
          blame_man[intention_cond == 'intent' & pref_cond == 'unpreferred'])
 blame_man_t1 <- t.test(blame_man[intention_cond == 'intent' & pref_cond == 'preferred'], 
@@ -183,7 +218,7 @@ blame_man_t2 <- t.test(blame_man[intention_cond == 'random' & pref_cond == 'pref
                        var.equal=TRUE, paired=FALSE)
 blame_man_t2
 
-#intentional unpreferred v. random preferred
+## intentional unpreferred v. random preferred
 var.test(blame_man[intention_cond == 'intent' & pref_cond == 'unpreferred'], 
          blame_man[intention_cond == 'random' & pref_cond == 'preferred'])
 blame_man_t3 <- t.test(blame_man[intention_cond == 'intent' & pref_cond == 'unpreferred'],
@@ -193,11 +228,11 @@ blame_man_t3
 
 
 
-# (1.2) BLAME AV
+# (1.2) BLAME AV ------------
 blame_av_mod <- lmer(blame_av ~ pref_cond_num*intention_cond_num + (1 | social_cond_num))
 summary(blame_av_mod)
 
-#intentional unpreferred v. random preferred
+## intentional unpreferred v. random preferred
 var.test(blame_av[intention_cond == 'intent' & pref_cond == 'unpreferred'], 
          blame_av[intention_cond == 'random' & pref_cond == 'preferred'])
 blame_av_t <- t.test(blame_av[intention_cond == 'intent' & pref_cond == 'unpreferred'],
@@ -207,11 +242,30 @@ blame_av_t
 
 
 
-# (1.3) BLAME COMPANY
+# (1.3) BLAME COMPANY ------------
 blame_company_mod <- lmer(blame_company ~ pref_cond_num*intention_cond_num + (1 | social_cond_num))
 summary(blame_company_mod)
 
-#intentional unpreferred v. random preferred
+## power estimate
+model0 = lmer(blame_company ~ pref_cond_num + (1 | social_cond_num), data = data)
+model1 = lmer(blame_company ~ pref_cond_num + intention_cond_num + (1 | social_cond_num), data = data); summary(model1)
+#fixef(model1)["intention_cond_num"] <- summary(model1)$coefficients[3,1]
+
+set.seed(123)
+power_blame_company = powerSim(model1, test=compare(model0, method="lr"), nsim=1000)
+power_blame_company
+
+# loop to estimate the minimum effect size of effect that we can detect with 80% power
+coeff_vec <- seq(-5.912182, -5.762182, 0.02)
+coeff_pwr <- GetPower(coeff_vec)
+
+# fit final minimum effect to make sure that power is still ~0.8 after 1000 sims
+fixef(model1)["intention_cond_num"] <- coeff_vec[2] 
+set.seed(123)
+min_power_blame_company <- powerSim(model1, test=compare(model0, method="lr"), nsim=1000)
+min_power_blame_company
+
+## intentional unpreferred v. random preferred
 var.test(blame_company[intention_cond == 'intent' & pref_cond == 'unpreferred'], 
          blame_company[intention_cond == 'random' & pref_cond == 'preferred'])
 blame_company_t <- t.test(blame_company[intention_cond == 'intent' & pref_cond == 'unpreferred'],
@@ -219,13 +273,46 @@ blame_company_t <- t.test(blame_company[intention_cond == 'intent' & pref_cond =
                           var.equal=FALSE, paired=FALSE)
 blame_company_t
 
+## power: intentional unpreferred v. random preferred
+n1 <- length(blame_company[intention_cond == 'intent' & pref_cond == 'unpreferred'])
+n2 <- length(blame_company[intention_cond == 'random' & pref_cond == 'preferred'])
+d <- cohen.d(blame_company[intention_cond == 'intent' & pref_cond == 'unpreferred'],
+             blame_company[intention_cond == 'random' & pref_cond == 'preferred'],
+             var.equal=TRUE, paired=FALSE)
+
+pwr.t.test(n = min(n1, n2), d = as.numeric(d[3])) 
+
+# loop to estimate the minimum effect size of effect that we can detect with 80% power
+coeff_vec <- seq(0.2627016, 0.2827016, 0.001)
+coeff_pwr <- GetTPower(coeff_vec, n1, n2); coeff_pwr
+pwr.t.test(n = min(n1, n2), d = as.numeric(coeff_vec[14])) 
 
 
-# (2) OUTRAGE
-outrage_mod <- lmer(outrage ~ pref_cond_num*intention_cond_num + (1 | social_cond_num))
+
+# (2) OUTRAGE COMPANY ----------
+outrage_mod <- lmer(outrage ~ pref_cond_num*intention_cond_num + (1 | social_cond_num), data = data)
 summary(outrage_mod)
 
-#followup: preferred v. unpreferred, intentional
+## power estimate
+model0 = lmer(outrage ~ pref_cond_num + (1 | social_cond_num), data = data)
+model1 = lmer(outrage ~ pref_cond_num + intention_cond_num + (1 | social_cond_num), data = data); summary(model1)
+#fixef(model1)["intention_cond_num"] <- summary(model1)$coefficients[3,1]
+
+set.seed(123)
+power_outrage = powerSim(model1, test=compare(model0, method="lr"), nsim=1000)
+power_outrage
+
+# loop to estimate the minimum effect size of effect that we can detect with 80% power
+coeff_vec <- seq(-6.358675, -6.308675, 0.02)
+coeff_pwr <- GetPower(coeff_vec, model1, model0)
+
+# fit final minimum effect to make sure that power is still ~0.8 after 1000 sims
+fixef(model1)["intention_cond_num"] <- coeff_vec[2] 
+set.seed(123)
+min_power_outrage_company <- powerSim(model1, test=compare(model0, method="lr"), nsim=1000)
+min_power_outrage_company
+
+## followup: preferred v. unpreferred, intentional
 var.test(outrage[intention_cond == 'intent' & pref_cond == 'preferred'], 
          outrage[intention_cond == 'intent' & pref_cond == 'unpreferred'])
 outrage_t <- t.test(outrage[intention_cond == 'intent' & pref_cond == 'preferred'], 
@@ -241,7 +328,7 @@ outrage_2 <- t.test(outrage[intention_cond == 'random' & pref_cond == 'preferred
 outrage_2
 
 
-#intentional unpreferred v. random preferred
+## intentional unpreferred v. random preferred
 var.test(outrage[intention_cond == 'intent' & pref_cond == 'unpreferred'], 
          outrage[intention_cond == 'random' & pref_cond == 'preferred'])
 outrage_t3 <- t.test(outrage[intention_cond == 'intent' & pref_cond == 'unpreferred'],
@@ -249,19 +336,62 @@ outrage_t3 <- t.test(outrage[intention_cond == 'intent' & pref_cond == 'unprefer
                     var.equal=FALSE, paired=FALSE)
 outrage_t3
 
+## power: intentional unpreferred v. random preferred
+n1 <- length(outrage[intention_cond == 'intent' & pref_cond == 'unpreferred'])
+n2 <- length(outrage[intention_cond == 'random' & pref_cond == 'preferred'])
+d <- cohen.d(outrage[intention_cond == 'intent' & pref_cond == 'unpreferred'],
+             outrage[intention_cond == 'random' & pref_cond == 'preferred'],
+             var.equal=TRUE, paired=FALSE)
+
+pwr.t.test(n = min(n1, n2), d = as.numeric(d[3])) 
+
+# loop to estimate the minimum effect size of effect that we can detect with 80% power
+coeff_vec <- seq(0.2627016, 0.2827016, 0.001)
+coeff_pwr <- GetTPower(coeff_vec, n1, n2); coeff_pwr
+pwr.t.test(n = min(n1, n2), d = as.numeric(coeff_vec[14])) 
 
 
-# (3) COLLECTIVE ACTION
+
+# (3) COLLECTIVE ACTION COMPANY ----- 
 col_action_mod <- lmer(col_action ~ pref_cond_num*intention_cond_num + (1 | social_cond_num))
 summary(col_action_mod)
 
-#intentional unpreferred v. random preferred
+#power estimate
+model0 = lmer(col_action ~ pref_cond_num + (1 | social_cond_num), data = data)
+model1 = lmer(col_action ~ pref_cond_num + intention_cond_num + (1 | social_cond_num), data = data); summary(model1)
+#fixef(model1)["intention_cond_num"] <- summary(model1)$coefficients[3,1]
+
+set.seed(123)
+power_coll = powerSim(model1, test=compare(model0, method="lr"), nsim=1000)
+power_coll
+
+# loop to estimate the minimum effect size of effect that we can detect with 80% power
+coeff_vec <- seq(-4.806556, -4.756556, 0.02)
+coeff_pwr <- GetPower(coeff_vec, model1, model0)
+
+# fit final minimum effect to make sure that power is still ~0.8 after 1000 sims
+fixef(model1)["intention_cond_num"] <- coeff_vec[3] 
+set.seed(123)
+min_power_coll_company <- powerSim(model1, test=compare(model0, method="lr"), nsim=1000)
+min_power_coll_company
+
+
+## intentional unpreferred v. random preferred
 var.test(col_action[intention_cond == 'intent' & pref_cond == 'unpreferred'], 
          col_action[intention_cond == 'random' & pref_cond == 'preferred'])
 col_action_t <- t.test(col_action[intention_cond == 'intent' & pref_cond == 'unpreferred'],
                        col_action[intention_cond == 'random' & pref_cond == 'preferred'],
                        var.equal=TRUE, paired=FALSE)
 col_action_t
+
+## power: intentional unpreferred v. random preferred
+n1 <- length(col_action[intention_cond == 'intent' & pref_cond == 'unpreferred'])
+n2 <- length(col_action[intention_cond == 'random' & pref_cond == 'preferred'])
+d <- cohen.d(col_action[intention_cond == 'intent' & pref_cond == 'unpreferred'],
+             col_action[intention_cond == 'random' & pref_cond == 'preferred'],
+             var.equal=TRUE, paired=FALSE)
+
+pwr.t.test(n = min(n1, n2), d = as.numeric(d[3])) 
 
 
 
@@ -458,7 +588,7 @@ p1_2<-ggplot(blame_company_plot,aes(x=factor(intention),y=mean,fill=factor(socia
   theme_bw()+coord_cartesian(ylim=c(1,100)) 
 p1_2<- p1_2+theme(text = element_text(size=16),panel.grid.major = element_blank(),panel.grid.minor = element_blank())+
   geom_errorbar(aes(ymax=mean+sem, ymin=mean-sem), position="dodge")+
-  scale_x_discrete(breaks = 1:length(unique(intention_cond)), labels=c("Intentional", "Random"))+
+  scale_x_discrete(breaks = 1:length(unique(intention_cond)), labels=c("Deliberate", "Random"))+
   ggtitle("Blame of Manufacturer")+
   scale_fill_manual(values = c("#1E10AD", "#4E85C9", "#68AB6D", "#E8B433", "#DC595C"),name= "Social Category:",
                     labels=social_plot_labels, guide = guide_legend(reverse = TRUE))+
@@ -477,7 +607,7 @@ p2_2<-ggplot(outrage_plot,aes(x=factor(intention),y=mean,fill=factor(social)),co
   theme_bw()+coord_cartesian(ylim=c(1,100)) 
 p2_2<- p2_2+theme(text = element_text(size=16),panel.grid.major = element_blank(),panel.grid.minor = element_blank())+
   geom_errorbar(aes(ymax=mean+sem, ymin=mean-sem), position="dodge")+
-  scale_x_discrete(breaks = 1:length(unique(intention_cond)), labels=c("Intentional", "Random"))+
+  scale_x_discrete(breaks = 1:length(unique(intention_cond)), labels=c("Deliberate", "Random"))+
   ggtitle("Outrage Toward Manufacturer")+
   scale_fill_manual(values = c("#1E10AD", "#4E85C9", "#68AB6D", "#E8B433", "#DC595C"),name= "Social Category",
                     labels=social_plot_labels, guide = guide_legend(reverse = TRUE))+
@@ -496,7 +626,7 @@ p3_2<-ggplot(col_action_plot,aes(x=factor(intention),y=mean,fill=factor(social))
   theme_bw()+coord_cartesian(ylim=c(1,100)) 
 p3_2<- p3_2+theme(text = element_text(size=16),panel.grid.major = element_blank(),panel.grid.minor = element_blank())+
   geom_errorbar(aes(ymax=mean+sem, ymin=mean-sem), position="dodge")+
-  scale_x_discrete(breaks = 1:length(unique(intention_cond)), labels=c("Intentional", "Random"))+
+  scale_x_discrete(breaks = 1:length(unique(intention_cond)), labels=c("Deliberate", "Random"))+
   ggtitle("Collective Action Against Manufacturer")+
   scale_fill_manual(values = c("#1E10AD", "#4E85C9", "#68AB6D", "#E8B433", "#DC595C"),name= "Social Category",
                     labels=social_plot_labels, guide = guide_legend(reverse = TRUE))+
